@@ -1,5 +1,9 @@
 #get API json dump links
 # no analysis, just bulk download of the api dumps.
+# If I move `get_json_links()` elsewhere this wouldn't needed in the pipeline, just keeping for myself in case the plan changes again.
+# might move that to a separate script later, or just put it in get_and_clean directly. No real benefit to having it over here.
+# Oh. It's already in get_and_clean. Okay well this one's just for me then. 
+
 # 7/11/25
 # https://docs.blender.org/api/
 
@@ -12,10 +16,13 @@ def makeurl(ending):
     url = html_root + ending
     return  url
 
-def get_json_links():
+def get_json_links(get_v_only=False):
     fulladdr = {}
     resp = requests.get("https://docs.blender.org/api/api_dump_index.json")
     dict_data = resp.json()  # requests automatically parses JSON
+    if get_v_only:
+        version_list=list(dict_data)
+        return version_list # version numbers only. Includes 5.1 which might be incomplete.
     for k, v in dict_data.items():
         v = makeurl(v)
         fulladdr[k] = v

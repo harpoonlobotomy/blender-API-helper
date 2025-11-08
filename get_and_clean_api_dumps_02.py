@@ -3,28 +3,61 @@
 # 7/11/25
 # https://docs.blender.org/api/
 
+"""
+Useful elsewhere perhaps:
+all_versions = list(all the versions in the api dump index)
+files = set(raw files downloaded) - filenames only, not actual file data.
+cleaned = list(cleaned json files for parsing) - filenames only, not actual file data.
+"""
+
+
 from pathlib import Path
 import json
 import os
 import requests
 
-specify_versions = ["3.1", "4.5"] # for only getting specific versions of the API instead of all
+#specify_versions = ["3.1", "4.5"] # for only getting specific versions of the API instead of all
 subdir = "\\api_dumps_2"
 versionlist = set()
 
-def check_for_raw(localdir):
-    print(localdir)
-    root = os.path.dirname(os.path.abspath(__file__)) + localdir
+def check_for_files(root, versions):
+    complete=False
+    found=None
+    #print(f"directory in check_for_files: {root}")
     if not os.path.exists(root):
         os.makedirs(root)
-        return None
-    files = [f for f in Path(root).iterdir() if f.is_file()]
-    return files
+        return None, complete
+    
+    found_all = [f for f in Path(root).iterdir() if f.is_file()]
+    if found_all:
 
-def cleaned_dumps(version, contents):
+        found=[]
+        found_versions = []
+        for f in found_all:
+            f2 = str(f).replace("_cleaned", "")
+            basename = float(os.path.basename(f2).rsplit(".",1)[0]) # god this is all messy as hell but it does find both clean and raw files.
+            if basename in versions:
+                found_versions.append(basename)
+                found.append(f)
 
-    root = os.path.dirname(os.path.abspath(__file__)) + subdir + "\\cleaned_api_dumps\\"
+        if len(found_versions)==len(versions):
+            print("All files requested in versions are Found.")
+            complete=True
+        else:
+            print("Not all versions found.")
+# No, it won't.    found = [f for f in Path(root).iterdir() if f.is_file and f in versions()] # will this work? If it's a file and if it's in versions. 
+    #for item in found:
+        # if one of versions not in item?? `if any(versions) not in item`?
+    #    print(item) # really want to potentially output the vers name here directly for use outside the func. Will think about it.
+        #well ignore this for now, because none of them exist for me to test against. But later: 'if the file is not a version referenced in versions, don't include it' is the intent.
+    return found, complete
+
+def cleaned_dumps(api_dir, version, contents):
+
+    #root = os.path.dirname(os.path.abspath(__file__)) + subdir + "\\cleaned_api_dumps\\"
+    root=api_dir + "\\cleaned_api_dumps\\"
     filepath =  root + version + "_cleaned.json"
+
     if not os.path.exists(root):
         os.makedirs(root)
         
@@ -34,23 +67,23 @@ def cleaned_dumps(version, contents):
     if os.path.isfile(filepath):
         print(f"{os.path.abspath(filepath)} created.")
     else:
-        print("File does not exist.")
+        print(f"File creation failed for {version}; file does not exist.")
     return filepath
 
-def clean_files(files):
+def clean_files(api_dir, files):
     cleaned_filelist = []
     for filename in files:
         with open(filename) as f:
             d = json.load(f) ## d == list, 0==versionname as list "[2, 92]", 1 = contents as dict.
             version = '.'.join(map(str,d[0]))
             file_contents = d[1]
-            cleaned_filelist.append(cleaned_dumps(version, file_contents))
+            cleaned_filelist.append(cleaned_dumps(api_dir, version, file_contents))
 
     return cleaned_filelist
 
 ## Get initial files from the API dump index
-def get_json_links():
-
+def get_json_links(versions_requested=None): # version_requested = specify a specific version number(s) to seek, regardless of specify_versions. 
+                                            # useful for pickups. I think here's the best place, because it just returns a list of 1, no later culling.
     fulladdr = {}
 
     def makeurl(ending):
@@ -60,21 +93,18 @@ def get_json_links():
 
     resp = requests.get("https://docs.blender.org/api/api_dump_index.json")
     dict_data = resp.json()  # requests automatically parses JSON
-
+    #print(f"dict data: {dict_data}")
     for k, v in dict_data.items():
-        if specify_versions:
-            if k not in specify_versions:
+        if versions_requested:
+            if float(k) not in versions_requested: # if a shortlist, exclude anything not on the shortlist.
                 continue
-            
-        v = makeurl(v)
-        fulladdr[k] = v
+
+        fulladdr[k] = makeurl(v)
     return fulladdr
 
-def write_raw_file_from_web(version, link):
+def write_raw_file_from_web(root, version, link):
 
-    root = os.path.dirname(os.path.abspath(__file__)) + subdir + "\\" # at start and
     filepath =  root + version + ".json"
-
     if not os.path.exists(root):
         os.makedirs(root)
 
@@ -83,16 +113,16 @@ def write_raw_file_from_web(version, link):
         dump_json = dump_file.json()
         Path(filepath).write_text(json.dumps(dump_json))
     if os.path.isfile(filepath):
-        print(f"{os.path.abspath(filepath)} created.")
+        print(f"{os.path.abspath(filepath)} -- raw file created.")
     else:
         print("File does not exist.")
 
-def get_version_name(file):
+def get_version_label(file):
     filename = os.path.basename(file)
     filename = filename.rsplit(".", 1)[0]
-    versionname = filename.split("_")[0]
+    version_label = filename.split("_")[0]
     #print("versionname: ", versionname)
-    return versionname
+    return version_label
 
 def compare_json(file1_path, file2_path):
     # Load JSON files
@@ -146,7 +176,7 @@ def compare_json(file1_path, file2_path):
 #
     def build_nodedicts(file, filepath):
 
-        version = get_version_name((filepath))
+        version = get_version_label((filepath))
 
         print(f"Building names for API version {version}")
         file_dict = build_nodes(version, file)
@@ -245,64 +275,185 @@ def compare_files(files):
         compare_json(file1, file2)
 
 def make_verlist(files):
-    verlist = set()
+    ver_set = set()
     for file in files:
-        verlist.add(get_version_name(file))
-    return verlist
+        ver_set.add(get_version_label(file))
+    return ver_set
 
-def make_files():
-    link_dict = get_json_links()
+def make_files(api_dir, versions_requested=None):
+    print(f"dir: {api_dir}, versions_requested: {versions_requested}")
+    link_dict = get_json_links(versions_requested)
+    #print(link_dict)
     for version, link in link_dict.items():
-        write_raw_file_from_web(version, link)
-    files = check_for_raw(subdir)
-    return files
+        write_raw_file_from_web(api_dir, version, link)
+    print("Raw files created.")
+    files, complete = check_for_files(api_dir, versions)
+    print(f"Complete: {complete}")
+    return files, complete # if complete==true, all files expected were found.
+
 ## run
-def main():
+def main(forward_convert, api_dir, betweens, versions, overwrite): # versions includes source + target. keeping source+target here for directionality. Could do it with a bool ('forward_convert' bool maybe)
+    #version = 4.1
+    #files = make_files(version)
 
-    files = check_for_raw(subdir)
-    if specify_versions:
-        verlist = make_verlist(files)
-        for version in specify_versions:
-            if version not in verlist:
-                print("File not found. Will create.")
-                files = make_files() #makes any/all if >=1 not found. Doesn't make a specific file that was missing. Need to change this.
+    if type(api_dir) != str:
+        api_dir=api_dir[0] # because the args often return a tuple
 
+    if not api_dir.endswith("\\"):
+        api_dir = api_dir + "\\" # try to make sure it's actually a folder, not generating in the parent folder. Probably a better way. Actually definitely. Will look it up later.
+
+    print(f"API file dir: {api_dir}")
+    files, complete = check_for_files(api_dir, versions)
+    #print(f"Files: {files}")
     if not files:
-        print("Raw files are not here.")
-        files = make_files()
-        if not files: 
-            print("Files not found locally and failed to download.")
-            return
-    
-    overwrite_cleaned = False
-    cleaned = check_for_raw(subdir + "\\cleaned_api_dumps")
-    if overwrite_cleaned or not cleaned:
-        print("overwrite or not cleaned, cleaning:")
-        cleaned = clean_files(files)
-    
-    if len(cleaned) == 2:
-        print("2 files found.")
-        compare_files(cleaned)
+        print("No viable files found. Attempting to create...")
+        files, complete = make_files(api_dir, versions) ## api_dir needs to be set somewhere else. Maybe the wrapper script that doesn't exist yet. Should be an import, not something passed through like this.
+    if files and complete:
+        print("All files found.")
     else:
-        print(f"{len(cleaned)} files found.")
-        
+        print(f"Files: {files}")
+        print(f"complete: {complete}")
+        print("Not all files found. Using the verlist.")
+        verlist = make_verlist(files) # not sure if the verlist makes sense anymore. Might have to redo this section
+        to_make=[]
+        for version in versions:
+            if version not in verlist:
+                to_make.append(version) # could just do this from the start, ignore the 'make all'. I kinda like that though. Why bother iterating, y'know? Idk.
+                print("File not found. Will create.")
+        if to_make:
+            files, complete = make_files(api_dir, to_make) #makes any/all if >=1 not found. Doesn't make a specific file that was missing. Need to change this.
+                #this should not return 'files', because it'll overwrite with each one added.
 
-class Nodes: # doesn't do anything yet. Mostly just here because I think it might be useful to implement later.
+        if not files or not complete:
+            print("Files not found locally and failed to download.")
+            return "Files not found locally and failed to download."
+    
+    cleaned, complete = check_for_files(api_dir + "cleaned_api_dumps\\", versions)
+    if complete:
+        print("All cleaned files requested were found pre-existing.")
+    if overwrite or not cleaned:
+        print("Overwrite or cleaned not found; cleaning:")
+        cleaned = clean_files(api_dir, files)
+    
+    if len(cleaned) == len(versions):
+        print("All cleaned files confirmed to exist.")
+    else:
+        print(f"{len(versions)} versions requested, only {len(cleaned)} final API documents.")
+    
+    ###
+    """And here is where the script has to diverge.
+    We send `versions`, `cleaned` and `forward_convert` (if we actually make that here - doubtful but for now.) onward to the actual conversion script. This is the end of the function here. I think that's better.
+    """
+    return versions, cleaned, forward_convert
+#output result:
+#   Result: ([3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.0, 4.1, 4.2, 4.3, 4.4, 4.5], ['D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.1_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.2_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.3_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.4_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.5_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.6_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.0_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.1_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.2_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.3_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.4_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.5_cleaned.json'], True)
+# I need to fix the extraneous \\\\ but it still works regardless so will leave it for now. Just looks scraggledy.
+
+    # none of the rest of this gets used. This script: Only for getting + preparing the required files. Will delete once I've gotten everything useful from it.
+    if betweens:
+        if len(cleaned) == len(versions):
+            compare_files(cleaned)    
+    elif len(versions) == 2:
+        compare_files(cleaned) 
+    else:
+        print(f"{len(cleaned)} files found. But betweens was False, so why are there more than 2?")
+
+
+class Nodes: # doesn't do anything yet. Mostly just here because I think it might be useful to implement later. 
     def __init__(self, name):
         self.name = name
     
     version = {}
     attr = []
 
- 
 #def build_nodes(version, name, data):
 #    for property, contents in data.items():
 
 #        print(node.version)
 #        break
+def get_version(source_version, target_version):
+
+    import get_json_dumps
+    version_numbers = get_json_dumps.get_json_links(get_v_only=True)
+    all_versions = []
+    for item in version_numbers:
+        item.strip(", ")
+        all_versions.append(float(item)) # not sure of a better way to convert them all to floats. Probably is one.
+    #int_versions = list of all api versions as floats.
+
+    forward_convert=True # by default, assume going from earlier to more recent API version.
+
+    if source_version not in all_versions:
+        print(f"Source version {source_version} not found. Please check - version must be given as a float, and must match one of these API versions: {all_versions}")
+        sys.exit()
+    if target_version not in all_versions:
+        print(f"Target version {target_version} not found. Please check - version must be given as a float, and must match one of these API versions: {all_versions}")
+        sys.exit()
+
+    #maybe a little helper function for this. Could be neater; just 'get_versions()' all on its own. Keeping it for now though.
+    if source_version > target_version:
+        forward_convert=False # I don't know if this script needs this either. Again it's only getting the raw data, it doesn't care about directionality.
+                                # keeping it for now, but might move it to the outer layer script later. This should really be a subprocess.
+    if betweens:
+        if forward_convert==False:
+            v1=target_version
+            v2=source_version
+        else:
+            v1=source_version
+            v2=target_version
+
+        versions = [v for v in all_versions if v1 <= v <= v2]
+        #print(f"Versions: {versions}")
+    else:
+        versions=[source_version, target_version] # if no inbetweens, just get the source and target.
+        print(type(versions))
+    #versions = {version for version in range(v1, v2)} ## range requires they be in order, so the older API must come first.
+    # theoretically the api converter should run just as smoothly going from newer api to older, so force it to arrange them correctly here.
+
+    if not versions:
+        print("No versions found: Check --source_version and --target_version are provided. Exiting.")
+        exit(0)
+    return forward_convert, versions # could output source and target directly here. Thinking about it.
 
 if __name__ == "__main__":
-    main() # no args but theoretically will run as-is. But without args, less useful.
+
+    import sys
+    import os
+    try:
+        import argparse
+        parser = argparse.ArgumentParser(description="Get Blender API reference files for specific versions.") # if only two versions, give whatever diff you can. Encourage 'get the inbetween version data' at that point if limits were specified.
+#        parser.add_argument("input_file", help="Input Python script (e.g., my_script.py)") # currently only runs a single file. Later, a whole folder would be better. # not sure if I want a file here or not. Surely there's a script outside of this one, calling this one. This one shouldn't care about the script.
+        parser.add_argument("--source_version", type=float, default=3.1, help="Source version (API version the script was written for, eg 3.1)")
+        parser.add_argument("--target_version", type=float, default=4.5, help="Target version (API version to convert to, eg 4.5)")
+        parser.add_argument("--api-dir", default=r"D:\Git_Repos\blender-API-helper\temp_pipeline_outputs", help="Folder to store API reference files.")
+        parser.add_argument("--betweens", type=bool, default=True, help="If 'False', only downloads/checks for the specified version numbers.") ## add "--disable_patterns True" to disable patterns.
+        parser.add_argument("--overwrite", type=bool, default=False, help="Overwrite existing API docs")
+        args = parser.parse_args()
+
+        source_version=args.source_version # this feels messy. Why am I using argparse instead of sys.args?
+        target_version=args.target_version # if not target version, use source_version and only get the one. Not sure why you'd want to. Maybe for getting midpoints later down the line. That's likely, actually.
+        api_dir=args.api_dir
+        betweens=args.betweens
+        overwrite=args.overwrite
+        print("Args received:", vars(args))
+
+    except:
+        print("No args recieved, using hardcoded defaults.")
+        #input_file="",
+        source_version=3.1
+        target_version=4.5
+        api_dir=r"D:\Git_Repos\blender-API-helper\api_dumps_3"
+        betweens=True
+        overwrite=False
+
+    forward_convert, versions = get_version(source_version, target_version)
+
+    try:
+        print("Going to main.")
+        result = main(forward_convert, api_dir, betweens, versions, overwrite) # could keep source+target here. Might be a reason to.
+        print(f"Result: {result}")
+    except Exception as e:
+        print("Failed to run pipeline: ", e)
 
 """
 from https://stackoverflow.com/questions/36059194/what-is-the-difference-between-json-dump-and-json-dumps-in-python:
