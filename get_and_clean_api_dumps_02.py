@@ -28,7 +28,7 @@ def check_for_files(root, versions):
         os.makedirs(root)
         return None, complete
     
-    found_all = [f for f in Path(root).iterdir() if f.is_file()]
+    found_all = [str(f) for f in Path(root).iterdir() if f.is_file()] # made this str so they're not winpath obj. Might be a mistake but it keeps the list usable if pre-existing, otherwise they're all windpath objects. idk if it's better to keep them that, but this way it's consistent - whether found or created, 'cleaned' is a list of str filepaths.
     if found_all:
 
         found=[]
@@ -55,7 +55,7 @@ def check_for_files(root, versions):
 def cleaned_dumps(api_dir, version, contents):
 
     #root = os.path.dirname(os.path.abspath(__file__)) + subdir + "\\cleaned_api_dumps\\"
-    root=api_dir + "\\cleaned_api_dumps\\"
+    root=api_dir + "cleaned_api_dumps\\"
     filepath =  root + version + "_cleaned.json"
 
     if not os.path.exists(root):
@@ -68,6 +68,7 @@ def cleaned_dumps(api_dir, version, contents):
         print(f"{os.path.abspath(filepath)} created.")
     else:
         print(f"File creation failed for {version}; file does not exist.")
+
     return filepath
 
 def clean_files(api_dir, files):
@@ -287,18 +288,17 @@ def make_files(api_dir, versions_requested=None):
     for version, link in link_dict.items():
         write_raw_file_from_web(api_dir, version, link)
     print("Raw files created.")
-    files, complete = check_for_files(api_dir, versions)
+    files, complete = check_for_files(api_dir, versions_requested)
     print(f"Complete: {complete}")
     return files, complete # if complete==true, all files expected were found.
 
 ## run
-def main(forward_convert, api_dir, betweens, versions, overwrite): # versions includes source + target. keeping source+target here for directionality. Could do it with a bool ('forward_convert' bool maybe)
+def get_files(api_dir, betweens, versions, overwrite): # versions includes source + target. keeping source+target here for directionality. Could do it with a bool ('forward_convert' bool maybe)
     #version = 4.1
     #files = make_files(version)
 
     if type(api_dir) != str:
         api_dir=api_dir[0] # because the args often return a tuple
-
     if not api_dir.endswith("\\"):
         api_dir = api_dir + "\\" # try to make sure it's actually a folder, not generating in the parent folder. Probably a better way. Actually definitely. Will look it up later.
 
@@ -344,10 +344,9 @@ def main(forward_convert, api_dir, betweens, versions, overwrite): # versions in
     """And here is where the script has to diverge.
     We send `versions`, `cleaned` and `forward_convert` (if we actually make that here - doubtful but for now.) onward to the actual conversion script. This is the end of the function here. I think that's better.
     """
-    return versions, cleaned, forward_convert
+    return versions, cleaned
 #output result:
 #   Result: ([3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.0, 4.1, 4.2, 4.3, 4.4, 4.5], ['D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.1_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.2_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.3_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.4_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.5_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\3.6_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.0_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.1_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.2_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.3_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.4_cleaned.json', 'D:\\Git_Repos\\blender-API-helper\\temp_pipeline_outputs\\\\cleaned_api_dumps\\4.5_cleaned.json'], True)
-# I need to fix the extraneous \\\\ but it still works regardless so will leave it for now. Just looks scraggledy.
 
     # none of the rest of this gets used. This script: Only for getting + preparing the required files. Will delete once I've gotten everything useful from it.
     if betweens:
@@ -371,8 +370,8 @@ class Nodes: # doesn't do anything yet. Mostly just here because I think it migh
 
 #        print(node.version)
 #        break
-def get_version(source_version, target_version):
-
+def get_versions(source_version, target_version, betweens):
+    import sys
     import get_json_dumps
     version_numbers = get_json_dumps.get_json_links(get_v_only=True)
     all_versions = []
@@ -415,45 +414,6 @@ def get_version(source_version, target_version):
         exit(0)
     return forward_convert, versions # could output source and target directly here. Thinking about it.
 
-if __name__ == "__main__":
-
-    import sys
-    import os
-    try:
-        import argparse
-        parser = argparse.ArgumentParser(description="Get Blender API reference files for specific versions.") # if only two versions, give whatever diff you can. Encourage 'get the inbetween version data' at that point if limits were specified.
-#        parser.add_argument("input_file", help="Input Python script (e.g., my_script.py)") # currently only runs a single file. Later, a whole folder would be better. # not sure if I want a file here or not. Surely there's a script outside of this one, calling this one. This one shouldn't care about the script.
-        parser.add_argument("--source_version", type=float, default=3.1, help="Source version (API version the script was written for, eg 3.1)")
-        parser.add_argument("--target_version", type=float, default=4.5, help="Target version (API version to convert to, eg 4.5)")
-        parser.add_argument("--api-dir", default=r"D:\Git_Repos\blender-API-helper\temp_pipeline_outputs", help="Folder to store API reference files.")
-        parser.add_argument("--betweens", type=bool, default=True, help="If 'False', only downloads/checks for the specified version numbers.") ## add "--disable_patterns True" to disable patterns.
-        parser.add_argument("--overwrite", type=bool, default=False, help="Overwrite existing API docs")
-        args = parser.parse_args()
-
-        source_version=args.source_version # this feels messy. Why am I using argparse instead of sys.args?
-        target_version=args.target_version # if not target version, use source_version and only get the one. Not sure why you'd want to. Maybe for getting midpoints later down the line. That's likely, actually.
-        api_dir=args.api_dir
-        betweens=args.betweens
-        overwrite=args.overwrite
-        print("Args received:", vars(args))
-
-    except:
-        print("No args recieved, using hardcoded defaults.")
-        #input_file="",
-        source_version=3.1
-        target_version=4.5
-        api_dir=r"D:\Git_Repos\blender-API-helper\api_dumps_3"
-        betweens=True
-        overwrite=False
-
-    forward_convert, versions = get_version(source_version, target_version)
-
-    try:
-        print("Going to main.")
-        result = main(forward_convert, api_dir, betweens, versions, overwrite) # could keep source+target here. Might be a reason to.
-        print(f"Result: {result}")
-    except Exception as e:
-        print("Failed to run pipeline: ", e)
 
 """
 from https://stackoverflow.com/questions/36059194/what-is-the-difference-between-json-dump-and-json-dumps-in-python:
