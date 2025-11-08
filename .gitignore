@@ -179,3 +179,12 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# VS Code
+*.code-workspace
+
+# My own files
+_test_file.py
+/Archive
+/api_dumps
+/api_dumps_2

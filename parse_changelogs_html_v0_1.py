@@ -14,6 +14,11 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 import json
 import os
+from pprint import pprint
+
+output_to_file = False
+use_existing_file = False
+print_result = True
 
 html_doc278 = r"D:\Git_Repos\blender-api-helper\changelogs_html\2_78_0 Blender API Change Log — Blender 3c043732d3f - API documentation.html"
 html_doc4 = r"D:\Git_Repos\blender-api-helper\changelogs_html\4_0 Change Log — Blender Python API.html"
@@ -22,12 +27,14 @@ html_doc4 = r"D:\Git_Repos\blender-api-helper\changelogs_html\4_0 Change Log —
 filelist = [html_doc278, html_doc4]
 version = 0.1
 
+existing_data = None # placeholder def so it doesn't get cranky
+
 def get_version_sections(soup):
     """Find version sections based on h2 headers and return list of (ver_text, section)."""
     sections = []
     seen = set()
-    for h2 in soup.find_all('h2'):
-        for a in h2.find_all("a", class_="headerlink"):
+    for h2 in soup('h2'): # 'calling a tag is like calling find_all'
+        for a in h2("a", class_="headerlink"):
             a.decompose()
         ver_text = h2.get_text(strip=True)
         parent = h2.find_parent(['section', 'div']) or h2.parent
@@ -140,17 +147,14 @@ def merge_dict(filedict, parsed):
 
 # --- Main execution ---
 output_path = r"D:\Git_Repos\blender-api-helper\changelogs_output.json"
-
-if os.path.exists(output_path):
-    with open(output_path, "r", encoding="utf-8") as f:
-        try:
-            existing_data = json.load(f)
-        except json.JSONDecodeError:
-            print("[WARN] Existing file is not valid JSON. Starting fresh.")
-            existing_data = {}
-else:
-    existing_data = {}
-
+if use_existing_file:
+    if os.path.exists(output_path):
+        with open(output_path, "r", encoding="utf-8") as f:
+            try:
+                existing_data = json.load(f)
+            except json.JSONDecodeError:
+                print("[WARN] Existing file is not valid JSON. Starting fresh.")
+                existing_data = {}
 
 for filename in filelist:
     with open(filename, encoding="utf-8") as f:
@@ -158,20 +162,23 @@ for filename in filelist:
     file = os.path.basename(filename)
 
     if existing_data:
-        filedict = existing_data.copy()
+        filedict = existing_data
     else:
         filedict = {}
-    rev_dict = {}
-    changelog_dict = {}
+    rev_dict = {} # 
     types = set()
 
     for ver_text, section in get_version_sections(soup):
         parsed = parse_version_section(ver_text, section)
         if parsed:
-            #filedict.update(parsed) # wipes the deeper values (eg 'bpy.types.World': {'3.6 to 4.0':  the version no is just replaced with the new one, and all data with it.), doesn't merge them.
             filedict_new = merge_dict(filedict, parsed) # works properly. Adds additional version:data without wiping existing.
             if filedict_new:
                 filedict.update(filedict_new)
 
-with open(output_path, "w+", encoding="utf-8") as f:
-    json.dump(filedict, f, indent=2)
+if print_result:
+    pprint(filedict)
+
+if output_to_file:
+    with open(output_path, "w+", encoding="utf-8") as f:
+        json.dump(filedict, f, indent=2)
+
