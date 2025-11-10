@@ -1,8 +1,6 @@
 #get API json dump links
 # no analysis, just bulk download of the api dumps.
-# If I move `get_json_links()` elsewhere this wouldn't needed in the pipeline, just keeping for myself in case the plan changes again.
-# might move that to a separate script later, or just put it in get_and_clean directly. No real benefit to having it over here.
-# Oh. It's already in get_and_clean. Okay well this one's just for me then. 
+# ! Not used in the actual script process. Just for bulk download of the api dumps.
 
 # 7/11/25
 # https://docs.blender.org/api/
@@ -58,6 +56,6 @@ if __name__ == "__main__":
 """
 from https://stackoverflow.com/questions/36059194/what-is-the-difference-between-json-dump-and-json-dumps-in-python:
 
-When you call jsonstr = json.dumps(mydata) it first creates a full copy of your data in memory and only then you file.write(jsonstr) it to disk. 
+When you call jsonstr = json.dumps(mydata) it first creates a full copy of your data in memory and only then you file.write(jsonstr) it to disk.
 So this is a faster method but can be a problem if you have a big piece of data to save.
 When you call json.dump(mydata, file) -- without 's', new memory is not used, as the data is dumped by chunks. But the whole process is about 2 times slower."""

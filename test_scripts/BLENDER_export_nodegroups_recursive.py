@@ -1,6 +1,5 @@
 # written for Blender 4.3
 # harpoonLobotomy, 10/10/25
-
 import bpy
 import os
 import json
@@ -30,7 +29,7 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
     group_out_node = next((n for n in nodegroup.nodes if n.type == 'GROUP_OUTPUT'), None)
 
     sockets = {"inputs": {}, "outputs": {}}
-  
+
     for i, sock in enumerate(nodegroup_node.inputs):
         default_vals = None
         if sock.name == "":
@@ -52,7 +51,7 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
                     default_vals = val
             idx = {
                 "socket_name": sock.name,
-                "socket_type": sock.bl_idname,     
+                "socket_type": sock.bl_idname,
             }
             if default_vals:
                 print("Default vals: ", default_vals)
@@ -73,12 +72,12 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
                 sockets["outputs"][i] = idx
 
     data["sockets"] = sockets
-    type_counters = defaultdict(int)  
-    
+    type_counters = defaultdict(int)
+
     nodes_data = []
     for node in nodegroup.nodes:
         name = None
-        
+
         if node.bl_idname == "NodeFrame":
             pass
         else:
@@ -86,7 +85,7 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
             print("Node name, node_type: ", node.name, node_type)
             if node.hide:
                 node_entry["autohide"] = node.hide
-                
+
             if node.bl_idname == "NodeReroute":
                 node_entry["reroute_type"] = node.socket_idname
 
@@ -95,7 +94,7 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
                 short_name = temp_name.split(".")[0]
                 if short_name not in discovered_nodegroups:
                     print(f"Internal nodegroup not seen before: {short_name}")
-                    new_discovered_nodegroups.append(node)  
+                    new_discovered_nodegroups.append(node)
             else:
                 short_name = node_type.removeprefix("ShaderNode")
 
@@ -116,7 +115,7 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
             if new_name == "NodeGroupInput":
                 new_name = "GroupInput"
             if new_name == "NodeGroupOutput":
-                new_name = "GroupOutput"               
+                new_name = "GroupOutput"
 
             node_entry["name"] = new_name
             node_index[node] = new_name
@@ -155,27 +154,27 @@ def nodegroup_to_json(nodegroup_node, discovered_nodegroups):
         to_node_name = link.to_node.name if link.to_node else "Group Output"
         from_node_type = link.from_node.bl_idname if link.from_node else "Group Input"
         to_node_type = link.to_node.bl_idname if link.to_node else "Group Output"
-        
+
         if link.from_node.bl_idname == "ShaderNodeGroup":
             from_node_name = node_index[link.from_node]
-            from_socket_id = link.from_socket.name    
+            from_socket_id = link.from_socket.name
         elif from_node_name == "Group Input":
             from_socket_id = link.from_socket.name
             from_node_name = "GroupInput"
         else:
             from_socket_id = link.from_socket.identifier
             from_node_name = node_index[link.from_node]
-        
+
         if link.to_node.bl_idname == "ShaderNodeGroup":
             to_node_name = node_index[link.to_node]
-            to_socket_id = link.to_socket.name     
+            to_socket_id = link.to_socket.name
         elif to_node_name == "Group Output":
             to_socket_id = link.to_socket.name
             to_node_name = "GroupOutput"
         else:
             to_socket_id = link.to_socket.identifier
             to_node_name = node_index[link.to_node]
-        
+
         from_node_name = from_node_name.replace(" ","")
         to_node_name = to_node_name.replace(" ","")
 
@@ -246,10 +245,10 @@ def export_frame_groups_custom(discovered_nodegroups):
     else:
         nodegroups = [n for n in nodes if n.type == 'GROUP']
         print("Processing all nodegroups in active material.")
-        
+
     new_output = {}
     existing_data = {}
-        
+
     if test_print:
         pass
     else:
@@ -259,7 +258,7 @@ def export_frame_groups_custom(discovered_nodegroups):
                     existing_data = json.load(f)
                 except json.JSONDecodeError:
                     print("[WARN] Existing file is not valid JSON. Starting fresh.")
-                    
+
  # Step 2: Build new entries
     for nodegroup in nodegroups:
         temp_name = nodegroup.name
@@ -273,7 +272,7 @@ def export_frame_groups_custom(discovered_nodegroups):
         print("Key nodegroup: ", nodegroup_name)
         print()
         group_data, new_discovered_nodegroups = nodegroup_to_json(nodegroup, discovered_nodegroups)
-        
+
         group_data["nodes"] = [
             node for node in group_data["nodes"]
             if node["name"] not in ("GROUP_INPUT", "GROUP_OUTPUT", "GroupInput", "GroupOutput")
