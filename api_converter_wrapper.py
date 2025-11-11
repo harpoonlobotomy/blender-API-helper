@@ -70,17 +70,19 @@ if __name__ == "__main__":
     import requests
     resp = requests.get("https://docs.blender.org/api/api_dump_index.json")
     all_versions = resp.json()
+    all_versions = list(all_versions.keys())
 
     from get_clean_api_dumps import get_files, get_versions
     forward_convert, versions = get_versions(source_version, target_version, betweens)
-
-    api_context.set_context(api_dir, input_file, source_version, target_version, forward_convert, betweens, overwrite, all_versions)
+    localpaths={}
+    api_context.set_context(api_dir, input_file, source_version, target_version, forward_convert, betweens, overwrite, all_versions, localpaths)
 
     print(api_dir, input_file, source_version, target_version, forward_convert, betweens, overwrite, all_versions)
     try:
         print("Going to main.")
+
         result = get_files(versions) # could keep source+target here. Might be a reason to.
-        from api_converter_01 import run
+        from api_converter import run
         run(result)
         print(f"Run successful: {result}") # using it here instead.
     except Exception as e:

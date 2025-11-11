@@ -27,6 +27,7 @@ def check_for_files(root, versions): # keep ROOT because it may be a subdir
     print(f"directory in check_for_files: {root}")
     if not os.path.exists(root):
         os.makedirs(root)
+        print(f"Directory doesn't exist yet: {root}")
         return None, complete
 
     def check_is_file(filepath, versions):
@@ -47,7 +48,6 @@ def check_for_files(root, versions): # keep ROOT because it may be a subdir
         else:
             return None
 
-    print("about to do find_all")
     found_all = [str(f) for f in Path(root).iterdir() if f.is_file()] # made this str so they're not winpath obj. Might be a mistake but it keeps the list usable if pre-existing, otherwise they're all windpath objects. idk if it's better to keep them that, but this way it's consistent - whether found or created, 'cleaned' is a list of str filepaths.
     if found_all:
         print(f"found_all: {found_all}")
@@ -61,6 +61,7 @@ def check_for_files(root, versions): # keep ROOT because it may be a subdir
         for f in found_all:
             basename=check_is_file(f, versions)
             if basename and basename != None:
+                api.localpaths[basename]=f
                 found_versions.append(basename)
                 found.append(f)
         #print(f"versions: {versions}")
@@ -71,7 +72,10 @@ def check_for_files(root, versions): # keep ROOT because it may be a subdir
             complete=True
         else:
             print("Not all versions found.")
-    print("leaving check_is_file")
+    else:
+        print("Apparently didn't find_all - don't know why it failed here...")
+        exit()
+    print("leaving check_for_files")
     return found, complete
 
 def cleaned_dumps(version, contents): # taking api_dir out of here and getting it from the class each time - better or worse?
@@ -166,6 +170,7 @@ def make_files(api_dir, versions_requested=None):
     #print(link_dict)
     for version, link in link_dict.items():
         write_raw_file_from_web(version, link)
+
     print(f"Raw files created. About to check for files, versions requested: {versions_requested}")
     files, complete = check_for_files(api_dir, versions_requested)
     print(f"Complete: {complete}")
@@ -183,10 +188,11 @@ def get_files(versions, clean=False): # versions includes source + target.
         versions = [float(versions)]
     if type(versions) == float:
         versions=[versions]
+
     print(f"in get_files. Versions: {versions}, clean: {clean}")
 
     print(f"versions inside get_files: {versions}, type: {type(versions)}")
-    if api.betweens == False or len(versions) > 2:
+    if api.betweens == False or len(versions) > 2: # this check is probably outdated by now...
         print("api betweens is False, about to get_source_and_target")
         source, target = api_context.get_source_and_target(versions)
         versions = [source, target]
@@ -203,6 +209,7 @@ def get_files(versions, clean=False): # versions includes source + target.
     print(f"Not premarked 'clean', about to check for files. versions requested: {versions}")
     files, complete = check_for_files(api_dir, versions)
     #print(f"Files: {files}")
+
     if not files:
         print(f"No viable files found. Attempting to create. Versions: {versions}")
         files, complete = make_files(api_dir, versions) ## api_dir needs to be set somewhere else. Maybe the wrapper script that doesn't exist yet. Should be an import, not something passed through like this.
@@ -258,7 +265,7 @@ def get_versions(source_version, target_version, betweens=False):
         if api.betweens: # this is so dumb but it allows for that one initial check before api is init. I need to be allowed to set it manually sometimes. Really should remove this one from the class.
             print("betweens is true.")
             betweens = True
-            versions=None # so it gets all the potential version numbers, not just the end result versions. Needed for later.
+            versions=None # so it gets all the potential version numbers, not just the end result versions. Needed for later. But it's broken,
     except:
         pass #this only happens at the first run, it's v silly but it's a workaround. Will fix it properly later.
     if betweens:
@@ -298,7 +305,7 @@ def get_versions(source_version, target_version, betweens=False):
         print(f"Versions: {versions}")
     else:
         versions=[source_version, target_version] # if no inbetweens, just get the source and target.
-        print(type(versions))
+        print(f"Versions type: {type(versions)}")
     #versions = {version for version in range(v1, v2)} ## range requires they be in order, so the older API must come first.
     # theoretically the api converter should run just as smoothly going from newer api to older, so force it to arrange them correctly here.
 
