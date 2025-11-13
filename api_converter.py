@@ -210,13 +210,9 @@ def get_midpoint(versions):
         [source_version, target_version] = versions
         print(f"source version, target version from versions: {source_version}, {target_version}, versions: {versions}")
         versions = api_context.get_between_vers(source_version, target_version)
-    # The following only works if 'versions' is all inclusive.
+        
     print(f"versions in after get_versions get_midpoint: {versions}, len: {len(versions)}")
-    total_len = len(versions) # doesn't work, eg what if it's 4? With this, it'll end up making it say the answer is 1, because it makes it three, then halves it and removes one.
-    print(f"total len: {total_len}")
-    midpoint_val = int(total_len*.5) # -1 is always right here, no? It won't always be even numbers but even with odds is it still right? Think so. It just defaults to the lower of the middle when odd.
-    print(f"Midpoint value: {midpoint_val}")
-    midpoint_var = versions[midpoint_val] # can make this one line later
+    midpoint_var = versions[int(len(versions)*.5)]
     print(f"Midpoint var: {midpoint_var}")
     return midpoint_var
 
