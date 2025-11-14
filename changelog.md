@@ -1,5 +1,8 @@
 # changelog
 
+## 14/11/25
+Reworked most parts. Still not useful but the changelog gen is much improved.
+
 ## 13/11/25
 Rough week. Haven't gotten too much done lately but am still working on it.
 
