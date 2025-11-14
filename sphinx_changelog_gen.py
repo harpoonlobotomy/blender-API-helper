@@ -50,7 +50,7 @@ API dump format:
 
 """
 __all__ = (
-    "main",
+    "generate_changelogs",
 )
 
 import json
@@ -241,16 +241,17 @@ def api_changelog(args):
                 return json.JSONEncoder.default(self, o)
     print("Written: %r" % filepath_out)
 
-    json_dict = rootpath + "changelog.json"
-    #api_dict={}
-    with open(json_dict, 'w', encoding='utf-8') as file_handle:
-        json.dump((to_basename, api_dict), file_handle, cls=JSONEncoderAPIDump)
+    #if save_hardcopy:
+    #    json_dict = rootpath + "changelog.json"
+    #    with open(json_dict, 'w', encoding='utf-8') as file_handle:
+    #        json.dump((to_basename, api_dict), file_handle, cls=JSONEncoderAPIDump)
 
-
-def main(argv=None):
+def generate_changelogs(argv=None):
     import sys
     import argparse
-
+    #argv = ['--', '--indexpath=D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json', 'changelog', ' --filepath-in-from D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\3.5.json', ' --filepath-in-to D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\4.5.json', ' --filepath-out D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.5_4.5_changes.rst']
+    for i, a in enumerate(argv):
+        print(i, repr(a))
     if argv is None:
         argv = sys.argv
 
@@ -258,7 +259,7 @@ def main(argv=None):
         argv = []  # as if no args are passed
     else:
         argv = argv[argv.index("--") + 1:]  # get all args after "--"
-
+        print(f"argv recieved: {argv}")
     # When --help or no args are given, print this help
     usage_text = f"For building changelogs between specified versions of bpy API. python sphinx_changelog_gen.py -- --indexpath='api_dumps_index.json' changelog --filepath-in-from 3.1.json --filepath-in-to 4.5.json --filepath-out changes.rst"
 
@@ -291,12 +292,12 @@ def main(argv=None):
     parser_changelog.add_argument(
         "--filepath-out", dest="filepath_out", metavar='FILE', required=True,
         help="Output sphinx changelog RST file.")
+
     parser_changelog.set_defaults(func=api_changelog)
 
     args = parser.parse_args(argv)
 
     args.func(args)
 
-
 if __name__ == "__main__":
-    main()
+    generate_changelogs()
