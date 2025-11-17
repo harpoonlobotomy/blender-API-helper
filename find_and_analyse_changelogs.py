@@ -1,13 +1,15 @@
 # find or generate a changelog from source to target
 
-# taking from the original scripts, they're just so messy though.
+#So I feel like the current version isn't going to be useful. Only having the bpy.types changelogs makes it hard to track deeper changes, as the changed names don't explicitly come up. And those broader changes are going to be the issue.
+# I can take my best bet with heuristics - if you mention nodes and sockets I can give recommendations as to the biggest changes, but that wasn't the point of this.
+# Maybe this is something I need to come back to later. I'm tired, and let's be honest I don't know what I'm doing. This whole thing is probably a mess.
 
 from operator import index
 import os
 
 api={"log_path": r"D:/Git_Repos/blender-API-helper/api_dumps_rst_output", "local_paths": {}} #r"D:\Git_Repos\blender-API-helper\test_scripts\BLENDER_export_nodegroups_recursive.py"}
 
-
+headers = ["Added", "Renamed", "Removed", "Function Arguments"]
 # python D:/Git_Repos/blender-API-helper/sphinx_changelog_gen.py -- --indexpath="D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json" changelog --filepath-in-from D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.1.json --filepath-in-to D:/Git_Repos/blender-API-helper/api_dumps_rst_output/4.5.json --filepath-out changes.rst
 # also, add '--save_hardcopy=False' to not save a hardcopy of the comparison file
 
@@ -41,10 +43,6 @@ def get_files(version:float, local_files:list) -> str:
     print(f"No local file found for version {version}")
     return None
 
-def make_file(version=float):
-
-    print
-
 def get_local_files():
     root=api["log_path"]
     from pathlib import Path
@@ -65,6 +63,7 @@ def get_local_files():
 #actual real-life call:
 #  python D:/Git_Repos/blender-API-helper/sphinx_changelog_gen.py -- --indexpath="D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json" changelog --filepath-in-from D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.1.json --filepath-in-to D:/Git_Repos/blender-API-helper/api_dumps_rst_output/4.5.json --filepath-out changes.rst
 def get_initial_files(source_v, target_v):
+    print(f"source_v: {source_v}, target_v: {target_v}")
     link_dict = {}
     local_logs=api["local_paths"]
     root=api["log_path"]
@@ -74,7 +73,7 @@ def get_initial_files(source_v, target_v):
         if not filepath:
             if link_dict == {}:
                 from get_changelogs_raw import get_link_list
-                link_dict=get_link_list(root) ## link_dict now includes remote file locations for all versions, not just those requested at the call time.
+                link_dict=get_link_list(root) ## link_dict now includes remote file locations for all versions, not just those requested at the call time. So this should only need to run once.
             from get_changelogs_raw import write_raw_file_from_web
             filepath=write_raw_file_from_web(root, version, link_dict[str(version)])
             check=check_is_file(filepath, version)
@@ -87,94 +86,144 @@ def get_initial_files(source_v, target_v):
     return link_dict, local_logs
 
 def breakdown_blocks(blocks):
-    pass
+    # Sample entry:
+    """Entry:  {'block_starts': 3106, 'block_item': 'bpy.types.WindowManager', 'block_ends': 3130, 'block_contents': ['Added', '* :class:`bpy.types.WindowManager.extension_search`', '* :class:`bpy.types.WindowManager.extension_show_panel_available`', '* :class:`bpy.types.WindowManager.extension_show_panel_installed`', '* :class:`bpy.types.WindowManager.extension_type`', '* :class:`bpy.types.WindowManager.extensions_blocked`', '* :class:`bpy.types.WindowManager.extensions_updates`', 'Renamed', '* **pose_assets** -> :class:`bpy.types.WindowManager.addon_tags`', '* **pose_assets** -> :class:`bpy.types.WindowManager.extension_tags`', 'Function Arguments', '* :class:`bpy.types.WindowManager.invoke_confirm` (operator, event, title, message, confirm_text, icon, text_ctxt, translate), *was (operator, event)*', '* :class:`bpy.types.WindowManager.invoke_props_dialog` (operator, width, title, confirm_text, cancel_default, text_ctxt, translate), *was (operator, width)*']}
+    Entry:  {'block_starts': 3131, 'block_item': 'bpy.types.WorkSpace', 'block_ends': 3139, 'block_contents': ['Renamed', '* **active_pose_asset_index** -> :class:`bpy.types.WorkSpace.active_addon`', '* **asset_library_ref** -> :class:`bpy.types.WorkSpace.asset_library_reference`']}"""
+
+
+    # renamed formatting: 'Renamed': ['* **show_edges** -> :class:bpy.types.View3DOverlay.show_camera_guides'
+    # function argument change: 'Function Arguments': ['bpy.types.WindowManager.invoke_confirm (operator, event, title, message, confirm_text, icon, text_ctxt, translate), *was (operator, event)*'
+    """
+    if block_type == "Renamed":
+        bpy_types_id + first half == 'old name'
+
+    So... regex to get **(this text)**
+
+    Or really I could just get the dicts themselves already pre-done, instead of parsing the text at all. I really, really should just do that.
+    """
+
+    cleaned_dict = {}
+    for entry in blocks.values():
+        bpy_types_id = entry["block_item"]
+        cleaned_dict[bpy_types_id]={}
+        block_type=None
+        changed = []
+        for i, line in enumerate(entry["block_contents"]):
+            if line in headers:
+                if cleaned_dict[bpy_types_id].get(block_type):
+                    cleaned_dict[bpy_types_id][block_type]=changed # append to the prev block type before changing and finding new changes
+                block_type=line
+                changed=[] # empty the changed list
+                cleaned_dict[bpy_types_id][block_type]=changed # start the new section
+            else:
+            #    if line.startswith("*"): # why not just do line.replace() all the time? Does it take longer than checking startswith()? does it matter? What's the general pov on this?
+            #                                # Given that it only has to check the first char of each line, I guess it's actually better to do the startswith first, so it doesn't check for " :class:" everywhere on every line, and same for "`" later. Mm.
+            #        line = line.replace("* :class:", "")
+            #    if "`" in line:
+            #        line=line.replace("`", "") ## Turned all of these off, because they're all removed at the sphinx changelog gen stage now.
+                changed.append(line)
+    #print(f"\n cleaned dict: \n \n {cleaned_dict}")
+    return cleaned_dict
 
 def parse_changelog(filepath_out):
     #doing this with line by line parsing, because docutils has piss-poor documentation and Sphinx is heavy and I'm too tired. Wasted a day on them already.
-    print("Pretend I'm parsing things.")
     line_list=[]
     with open(filepath_out) as file:
         for line in file:
             line_list.append(line.rstrip())
-    block_starts=[] #better way of doing this, this was from a previous trial and now just functions as a test bool for the first run.
+    block_starts=[]
     blocks={}
-    blocks_detailed={}
     counter=0
     active_block=False
-    block_type=None
-    for i, line in enumerate(line_list):
+
+    for i, line in enumerate(line_list): ## should I do this while the file is open instead instead of running two separate for loops here? Feels like no but I have no justification for that feeling.
         if block_starts==None:
             continue
         if line.startswith("----") or i+1 == len(line_list): # marks start+end of blocks
+            if line.startswith("----"): # separated this out so it only starts a new block at ---, but the blocks are still gathered at the last one.
+                blocks[counter]={"block_starts": i+1, "block_item": line_list[i+1]}
             if active_block:
                 start=blocks[counter-1]["block_starts"]
                 lines_in_block=[]
-                detailed_lines_in_block=[]
-                for block_i, line in enumerate(line_list):  #### !! this only appends the first and last entry. Changing how I do it.
+                for block_i, line in enumerate(line_list): # Should be able to process it all inline here.  But currently can't, so will process the blocks separately.
                     if start<block_i<i: # should this be 'while' instead of 'if'?
-                        if line == '':
-                            continue
-                        if not (line.startswith("----") or i+1 == len(line_list)): # makes sure it appends the last entry
-                            continue
-                        if line.startswith("^^^"):
-                            if line_list[block_i+1] in ("Added", "Renamed", "Replaced", "Removed", "Function Arguments"):
-                                blocks_detailed[counter-1].update({block_type: {"block_contents": detailed_lines_in_block}})
-                                detailed_lines_in_block=[]
-                            continue
-                            # here, we should get the next line, and append the old block_type and block so far to a dict.
-                        if line.strip() in ("Added", "Renamed", "Replaced", "Function Arguments", "Removed"):
-                            block_type=line.strip()
-                            continue
-                        #lines_in_block == all lines, inc headers, ^^^, etc.
-                        detailed_lines_in_block.append(line)
-                        lines_in_block.append(line) # not sure if I want to do this and then finesse the results separately or just do it directly. Really should do it directly if there's no benefit to double handling.
-                        #while line.startswith("*"): <- something like this?
-                        #if lines.startswith("^^^^"):
-                        #    blocks[counter-1].update({"block_ends": i-1, block_type: {"block_contents": lines_in_block}})
-                        #    block_type=line_list[block_i+1]
-                        #    print(f"block type: {block_type}")
-                        #    #blocks[counter-1].update({"block_type": {line_list[block_i+1]:None}})
-                        #    continue
+                        if line in ('') or line.startswith("^^^^") or line.startswith("----"): # there's a better way of doing this but it works. God I'm braindead today.
+                            continue # skip adding blank, ^^ and -- lines.
+                        lines_in_block.append(line) #just adding blocks raw for now, later want to do the cleaning inline (change_type subsets etc) but for now, just doing a second pass.
                         blocks[counter-1].update({"block_ends": i, "block_contents": lines_in_block})
-                        blocks_detailed[counter-1].update({"block_ends": i})
+                counter+=1 # increase counter while active_block. It wasn't incrementing and I didn't notice...
             if not line.startswith("----"):
                 continue
-            blocks[counter]={"block_starts": i+1, "block_item": line_list[i+1]}
-            blocks_detailed[counter]={"block_item": line_list[i+1]}
             block_starts.append(i+1)
-        #    affected=[]
             active_block=True
             counter+=1
-        #if line.startswith("^^^^"):
-        #    change_type=line_list[i+1]
-        #    blocks[counter].update({"change_type": {change_type:affected}})
-        #if line.startswith("*"):
-        #    affected.append(line) # needs characters stripped, and :class:.
-        #    print(f"counter: {counter}")
-        #    blocks[counter]["change_type"].get(change_type).update(affected)#blocks[counter].update({"affected"})
-    #print(f"blocks: {blocks_detailed}")
-    breakdown_blocks(blocks)
 
-def make_changelog(local_logs, source_v, target_v):
-    #cmd_line = r'python D:/Git_Repos/blender-API-helper/sphinx_changelog_gen.py -- --indexpath="D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json" changelog --filepath-in-from D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.1.json --filepath-in-to D:/Git_Repos/blender-API-helper/api_dumps_rst_output/4.5.json --filepath-out changes.rst'
+    blocks_dict=breakdown_blocks(blocks)
+
+def make_cli_args(local_logs, source_v, target_v, blender=False, overwrite=True):
+
     raw_output_filename = str(source_v) + "_" + str(target_v)
     raw_output_filename = raw_output_filename.replace(".", "_")
     outout_filename = "/" + raw_output_filename + "_changes.rst"
-    filepath_out=api["log_path"] + outout_filename
-
-    if not os.path.isfile(filepath_out):
-        from sphinx_changelog_gen import generate_changelogs
+    if blender: # is the version in testing for blender direct output. Use a different dir.
+        indexpath = api["log_path"] + "/blender_version/api_dump_index.json"
+        filepath_out=api["log_path"] + "/blender_version/" + outout_filename
+        add_parser="dump"
+        ## why not run it in blender via the cli? Why run the script in blender manually? silly. TODO: Fix this part.
+        cmd_line = ['--', f'--indexpath={indexpath}', f'{add_parser}', '--filepath-out', f'{filepath_out}'] # this is all so messy...
+    else:
         indexpath = api["log_path"] + "/api_dump_index.json"
+        filepath_out=api["log_path"] + outout_filename
+        add_parser="changelog"
         filepath_from=local_logs[source_v]
         filepath_to=local_logs[target_v]
-        cmd_line = ['--', f'--indexpath={indexpath}', 'changelog', '--filepath-in-from', f'{filepath_from}', '--filepath-in-to', f'{filepath_to}', '--filepath-out', f'{filepath_out}'] # Currently it always makes the rst, as the raw dict is too full of extra bits and the rst formatting is ideal.
-        generate_changelogs(cmd_line) # creates the rst file
-        print(f"changelog rst: {filepath_out}")
-    parse_changelog(filepath_out)
+        cmd_line = ['--', f'--indexpath={indexpath}', f'{add_parser}', '--filepath-in-from', f'{filepath_from}', '--filepath-in-to', f'{filepath_to}', '--filepath-out', f'{filepath_out}'] # Currently it always makes the rst, as the raw dict is too full of extra bits and the rst formatting is ideal.
 
-def main(source_v=3.5, target_v=4.5):
+    print(f"cmd_line:\n {cmd_line}")
+    if not os.path.isfile(filepath_out) or overwrite==True:
+        print(f"  Filepath out: {filepath_out}\n  Now starting file production.")
+
+        return cmd_line, filepath_out
+    return None, filepath_out
+
+def make_changelog(local_logs, source_v, target_v):
+    #cmd_line = r'python D:/Git_Repos/blender-API-helper/sphinx_changelog_gen.py -- --indexpath="D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json" changelog --filepath-in-from D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.1.json --filepath-in-to D:/Git_Repos/blender-API-helper/api_dumps_rst_output/4.5.json --filepath-out changes.rst'
+
+
+    # bool for testing:
+    parse_changelogs = False
+
+## API data for the original 'dump' functions:
+#    parser_dump = parser_commands.add_parser('dump', help="Dump the current Blender Python API into a JSON file.")
+#    parser_dump.add_argument(
+#        "--filepath-out", dest="filepath_out", metavar='FILE', required=True,
+#        help="Path of the JSON file containing the dump of the API.")
+#    parser_dump.set_defaults(func=api_dump)
+#
+#    parser_changelog = parser_commands.add_parser(
+#        'changelog',
+#        help="Generate the RST changelog page based on two Blender Python API JSON dumps.",
+#    )
+
+    cmd_line, filepath_out =make_cli_args(local_logs, source_v, target_v, blender=True, overwrite=True)
+    if cmd_line: ## May need clearer language. '`not cmdline` means the file already existed an overwrite==False
+        from sphinx_changelog_gen import generate_changelogs
+        generate_changelogs(cmd_line) # creates the rst file
+        #print(f"changelog rst: {filepath_out}")
+
+    if parse_changelogs:
+        parse_changelog(filepath_out)
+
+def make_blender_json(source_v, target_v):
+
+    return None, None#link_dict, local_logs
+
+def main(source_v=2.92, target_v=4.2):
+
+    make_changelog_on=False
+    get_blender_data=True
 
     link_dict, local_logs = get_initial_files(source_v, target_v)
-    make_changelog(local_logs, source_v, target_v)
+    make_changelog(local_logs, source_v, target_v) ## Not properly implemented yet, halfway between new version (standalone blender-json-file-creation) and old version.
 
 main()

@@ -195,12 +195,15 @@ def api_changelog(args):
             write_title(title, "-")
             api_dict[mod_id+"."+class_id]={}
             entry=api_dict[mod_id+"."+class_id]
+            ##NOTE:
+            ## Added and Removed both only give the prop_id, to be combined with mod_id and class_name if needed.
             if props_new:
                 write_title("Added", "^")
                 if make_dict:
                     init_dictkey("added", props_new)
                 for prop_id in props_new:
-                    fw("* :class:`%s.%s.%s`\n" % (mod_id, class_name, prop_id))
+                    #fw("* %s.%s.%s\n" % (mod_id, class_name, prop_id))
+                    fw("* %s\n" % (prop_id))
                 fw("\n")
 
             if props_old:
@@ -208,15 +211,17 @@ def api_changelog(args):
                     init_dictkey("removed", props_old)
                 write_title("Removed", "^")
                 for prop_id in props_old:
-                    fw("* **%s**\n" % prop_id)  # can't link to removed docs
+                    fw("* %s\n" % prop_id)  # can't link to removed docs
+                    mod_id, class_name,
                 fw("\n")
-
+            ## NOTE:
+            ## Rename and Function Arguments now present 'old -> new'
             if props_moved:
                 if make_dict:
                     init_dictkey("renamed", props_moved)
                 write_title("Renamed", "^")
                 for prop_id_old, prop_id in props_moved:
-                    fw("* **%s** -> :class:`%s.%s.%s`\n" % (prop_id_old, mod_id, class_name, prop_id))
+                    fw("* %s -> %s\n" % (prop_id_old,prop_id))
                 fw("\n")
 
             if func_args:
@@ -226,30 +231,38 @@ def api_changelog(args):
                 for func_id, args_old, args_new in func_args:
                     args_new = ", ".join(args_new)
                     args_old = ", ".join(args_old)
-                    fw("* :class:`%s.%s.%s` (%s), *was (%s)*\n" % (mod_id, class_name, func_id, args_new, args_old))
+                    #fw("* %s.%s.%s (%s), *was (%s)*\n" % (mod_id, class_name, func_id, args_new, args_old))
+                    fw("* %s (%s) -> (%s)\n" % (func_id, args_old, args_new))
                 fw("\n")
         from pprint import pprint
-        pprint(api_dict)
+        #pprint(api_dict)
 
-    if make_dict:
-        class JSONEncoderAPIDump(json.JSONEncoder):
-            def default(self, o):
-                if o is ...:
-                    return "..."
-                if isinstance(o, set):
-                    return tuple(o)
-                return json.JSONEncoder.default(self, o)
+
+    class JSONEncoderAPIDump(json.JSONEncoder):
+        def default(self, o):
+            if o is ...:
+                return "..."
+            if isinstance(o, set):
+                return tuple(o)
+            return json.JSONEncoder.default(self, o)
+
     print("Written: %r" % filepath_out)
-
-    #if save_hardcopy:
-    #    json_dict = rootpath + "changelog.json"
-    #    with open(json_dict, 'w', encoding='utf-8') as file_handle:
-    #        json.dump((to_basename, api_dict), file_handle, cls=JSONEncoderAPIDump)
+    save_hardcopy=True
+    if save_hardcopy:
+        json_dict_path
+        with open(json_dict_path, 'w+', encoding='utf-8') as file_handle:
+            try:
+                json.dump((to_basename, api_dict), file_handle, cls=JSONEncoderAPIDump)
+                print(f"Printed to json: {json_dict_path}")
+            except Exception as e:
+                print(f"Faield json dump: {e}")
 
 def generate_changelogs(argv=None):
     import sys
     import argparse
-    #argv = ['--', '--indexpath=D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json', 'changelog', ' --filepath-in-from D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\3.5.json', ' --filepath-in-to D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\4.5.json', ' --filepath-out D:/Git_Repos/blender-API-helper/api_dumps_rst_output/3.5_4.5_changes.rst']
+    #argv = ['--', '--indexpath=D:/Git_Repos/blender-API-helper/api_dumps_rst_output/api_dump_index.json', 'changelog', '--filepath-in-from', 'D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\3.5.json', '--filepath-in-to', 'D:\\Git_Repos\\blender-API-helper\\api_dumps_rst_output\\4.5.json', '--filepath-out', 'D:\\Git_Repos/blender-API-helper\\api_dumps_rst_output\\3.5_4.5_changes.rst']
+    #for a in argv: # just for testing the above, can remove these lines.
+    #    print(f"A: {a}")
     for i, a in enumerate(argv):
         print(i, repr(a))
     if argv is None:

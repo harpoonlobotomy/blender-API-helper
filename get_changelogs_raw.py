@@ -1,4 +1,5 @@
 #get changelogs from online
+
 import os
 
 def get_link_list(log_path):

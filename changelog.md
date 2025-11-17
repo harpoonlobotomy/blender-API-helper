@@ -1,5 +1,9 @@
 # changelog
 
+## 17/11/25
+Removed the old files, kept the new versions so it's far less confusing than functionally having two full sets of scripts that didn't operate together.
+In terms of function - the new version 
+
 ## 14/11/25
 Reworked most parts. Still not useful but the changelog gen is much improved.
 
